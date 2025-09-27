@@ -1,0 +1,47 @@
+{
+  "active_orders": {
+    "bithumb": {
+      "USDC": [
+        {
+          "id": "C0868000000017207399",
+          "price": 1439.4379999999999,
+          "amount": 10.34987846,
+          "filled": 10.34987846,
+          "status": "closed",
+          "timestamp": "2025-09-27T14:39:06.523793",
+          "premium_at_placement": 0.060586058610031995
+        },
+        {
+          "id": "C0868000000017207404",
+          "price": 1440.876,
+          "amount": 10.34987846,
+          "filled": 0,
+          "status": "open",
+          "timestamp": "2025-09-27T14:39:06.993943",
+          "premium_at_placement": 0.060586058610031995
+        }
+      ]
+    }
+  },
+  "completed_sales": [
+    {
+      "timestamp": "2025-09-27T14:55:44.032216",
+      "exchange": "bithumb",
+      "coin": "USDC",
+      "amount": 10.34987846,
+      "price": 1439.4379999999999
+    }
+  ],
+  "positions": {
+    "USDC": {
+      "gateio": {
+        "symbol": "USDC/USDT:USDT",
+        "contracts": 9.65012154,
+        "side": "short",
+        "entry_price": 0.9988,
+        "pnl": -0.002
+      }
+    }
+  },
+  "status": "idle"
+}
