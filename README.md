@@ -83,20 +83,16 @@ OKX_API_PASSWORD=your_password
 ### 실시간 가격 테스트 (거래 없음)
 
 ```bash
-# 방법 1: 직접 실행
-source .venv/bin/activate
-python tests/test_prices.py
-
-# 방법 2: 다른 테스트
-python tests/test_manual.py
+# UV로 직접 실행
+uv run python tests/test_prices.py
+uv run python tests/test_manual.py
 ```
 
 ### 실제 헤지 봇 실행
 
 ```bash
-# 방법 1: 직접 실행
-source .venv/bin/activate
-python main.py
+# 방법 1: UV로 직접 실행
+uv run python main.py
 
 # 방법 2: 스크립트 사용
 ./run.sh
