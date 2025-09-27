@@ -1,0 +1,21 @@
+[project]
+name = "hedge-bot"
+version = "1.0.0"
+description = "Multi-exchange delta-neutral hedge bot"
+requires-python = ">=3.8"
+dependencies = [
+    "ccxt>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+hedge = "main:main"
+test-prices = "test_prices:test_prices"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
