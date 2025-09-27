@@ -80,29 +80,91 @@ OKX_API_PASSWORD=your_password
 
 ## 사용법
 
-### 실시간 가격 테스트 (거래 없음)
+### Phase 1: 헤지 포지션 구축 (main.py)
 
 ```bash
-# UV로 직접 실행
+# 헤지 봇 실행
+uv run python main.py
+```
+
+#### 실행 옵션:
+1. **모드 선택**
+   - **자동 모드**: 모든 거래소에서 최적의 조합 자동 탐색
+   - **수동 모드**: 특정 거래소 지정 (예: 현물 Bybit, 선물 Gate.io)
+
+2. **코인 선택**
+   - BTC, ETH, SOL 등 주요 코인
+   - 신규 상장 예정 코인 (IP, USDC 등)
+
+3. **실행 프로세스**
+   - 펀딩비 확인 (음수 펀딩비 경고)
+   - 실시간 스프레드 모니터링
+   - 목표 스프레드 달성 시 자동 진입
+   - 포지션 요약 및 빗썸 목표가 표시
+
+#### 포지션 구축 예시:
+```
+📊 Best Opportunity:
+  Buy:  BYBIT @ $8.41
+  Sell: GATEIO @ $8.42
+  Spread: 0.119%
+  ✅ READY TO ENTER
+
+🎯 Executing hedge...
+✅ GATEIO Perp Short: 1.19 IP @ $8.42
+✅ BYBIT Spot Buy: 1.19 IP for $10.00
+```
+
+### Phase 2: 김치 프리미엄 Exit (exit.py)
+
+```bash
+# 통합 Exit Manager 실행
+uv run python exit.py
+```
+
+#### 주요 기능:
+1. **실제 포지션 자동 감지**
+   - 모든 거래소의 선물 숏 포지션 스캔
+   - 빗썸/업비트 현물 잔고 확인
+
+2. **스마트 주문 관리**
+   - **주문 배치 김프**: 설정값 이상일 때 지정가 주문 생성
+   - **체결 허용 김프**: 이 수준에서 주문 유지
+   - **자동 취소**: 김프가 낮아지면 주문 자동 취소
+
+3. **실시간 헤지 청산**
+   - 한국 거래소 매도 체결 감지
+   - 체결된 수량만큼 즉시 해외 선물 숏 청산
+   - 델타 중립 유지
+
+#### Exit 실행 예시:
+```
+📊 BITHUMB
+  김프: 3.2% (vs GATEIO)
+  📝 주문 배치 중...
+    📝 주문: 10.3500 USDC @ ₩1,441
+    📝 주문: 10.3500 USDC @ ₩1,442
+
+  💰 체결: 5.0000 USDC @ ₩1,441
+  🔄 선물 헤지 청산 중...
+  ✅ GATEIO 숏 청산: 5.0000 USDC
+```
+
+#### 병렬 처리 최적화:
+- 거래소 연결: 3배 빠른 초기화
+- 김프 계산: 3개 API 동시 호출
+- 실시간 모니터링: 5초 간격
+
+### 추가 도구
+
+```bash
+# 실시간 가격 테스트 (거래 없음)
 uv run python tests/test_prices.py
 uv run python tests/test_manual.py
+
+# 상태 파일 관리
+rm exit_state.json  # Exit 상태 초기화
 ```
-
-### 실제 헤지 봇 실행
-
-```bash
-# 방법 1: UV로 직접 실행
-uv run python main.py
-
-# 방법 2: 스크립트 사용
-./run.sh
-```
-
-프로그램 실행 시:
-1. 모드 선택 (자동/수동)
-2. 코인 심볼 입력
-3. 펀딩비 확인 및 진행 여부 결정
-4. 자동 모니터링 및 거래 실행
 
 ## 설정 변경
 
@@ -111,7 +173,7 @@ uv run python main.py
 ```python
 ENTRY_AMOUNT = 20.0              # 회당 진입 금액 (USDT)
 MAX_ENTRIES = 40                 # 최대 진입 횟수
-PRICE_DIFF_THRESHOLD = 0.0021    # 진입 스프레드 (0.21%)
+PRICE_DIFF_THRESHOLD = 0.0021    # 진입 스프레드 (0.21%) - 콘탱고
 SLEEP_SEC = 10                   # 체크 주기
 FUTURES_LEVERAGE = 1             # 선물 레버리지 (항상 1x)
 ```

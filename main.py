@@ -4,6 +4,7 @@ from datetime import datetime
 from src.exchanges import ExchangeManager
 from src.pricing import PriceAnalyzer
 from src.trading import TradeExecutor
+from src.position_tracker import PositionTracker
 from config import (
     ENTRY_AMOUNT,
     MAX_ENTRIES,
@@ -80,23 +81,31 @@ def main():
 
     price_analyzer = PriceAnalyzer(exchange_manager)
     trade_executor = TradeExecutor(exchange_manager)
+    position_tracker = PositionTracker()
 
-    # Check funding rates before starting
-    print("\n📊 펀딩비 체크 중...")
+    # Check funding rates before starting (only for perp exchanges)
+    print("\n📊 선물 펀딩비 체크 중...")
     print("="*50)
 
     prices = price_analyzer.fetch_all_prices()
     has_negative_funding = False
 
     for exchange_name, price_data in prices.items():
-        if 'funding_rate' in price_data:
-            funding_rate = price_data['funding_rate']
-            status = "✅" if funding_rate >= 0 else "❌"
-            print(f"{exchange_name.upper():10} 펀딩비: {funding_rate:+.4%} {status}")
-            if funding_rate < 0:
-                has_negative_funding = True
-        elif 'perp_bid' in price_data:
-            print(f"{exchange_name.upper():10} 펀딩비: 데이터 없음 ⚠️")
+        # In manual mode, only check selected perp exchange
+        if mode == "2" and perp_exchange_filter:
+            if exchange_name != perp_exchange_filter:
+                continue
+
+        # Only check funding for exchanges with perp markets
+        if 'perp_bid' in price_data:
+            if 'funding_rate' in price_data:
+                funding_rate = price_data['funding_rate']
+                status = "✅" if funding_rate >= 0 else "❌"
+                print(f"{exchange_name.upper():10} 펀딩비: {funding_rate:+.4%} {status}")
+                if funding_rate < 0:
+                    has_negative_funding = True
+            else:
+                print(f"{exchange_name.upper():10} 펀딩비: 데이터 없음 ⚠️")
 
     print("="*50)
 
@@ -150,6 +159,9 @@ def main():
             else:
                 print(f"  ⏳ Waiting (need {utils.format_percentage(PRICE_DIFF_THRESHOLD)})")
 
+            # Show current position summary
+            position_tracker.display_position_summary()
+
             if spread >= PRICE_DIFF_THRESHOLD:
                 print(f"\n🎯 Opportunity detected! Executing hedge...")
                 success = trade_executor.execute_hedge(
@@ -159,6 +171,18 @@ def main():
 
                 if success:
                     entry_count += 1
+                    # Track position for average price calculation
+                    # Estimate quantity based on entry amount and spot price
+                    estimated_qty = ENTRY_AMOUNT / spot_price
+                    position_tracker.add_entry(
+                        coin=coin,
+                        spot_price=spot_price,
+                        quantity=estimated_qty,
+                        spot_exchange=spot_ex,
+                        perp_exchange=perp_ex,
+                        perp_price=perp_price,
+                        spread=spread
+                    )
                     print(f"Entry count: {entry_count}/{MAX_ENTRIES}")
                     print(f"\n⏳ Waiting {SLEEP_SEC} seconds before next check...")
                 else:

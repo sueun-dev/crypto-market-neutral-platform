@@ -19,7 +19,7 @@ from . import utils
 
 
 # --- Behavior knobs ---
-FILL_POLL_SECONDS   = 8.0     # standard polling window
+FILL_POLL_SECONDS   = 1.0     # standard polling window
 FILL_POLL_INTERVAL  = 0.25
 FAST_POLL_SECONDS   = 1.0     # short window when fast mode is on
 PROCEED_ON_PERP_ACK = True    # True: spot fires immediately after perp ACK (or short poll)

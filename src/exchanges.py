@@ -11,15 +11,31 @@ class ExchangeManager:
         self.symbols: Dict[str, Dict[str, str]] = {}
 
     def initialize_exchanges(self, use_public_api: bool = False) -> Dict[str, Dict[str, ccxt.Exchange]]:
-        """Initialize all available exchanges"""
+        """Initialize all available exchanges in parallel"""
+        import concurrent.futures
 
-        for exchange_name, config in EXCHANGES_CONFIG.items():
+        def connect_exchange(exchange_name, config, use_public_api):
+            """Connect to a single exchange"""
             if use_public_api or (config['apiKey'] and config['secret']):
                 try:
-                    self._create_exchange_pair(exchange_name, config, use_public_api)
+                    result = self._create_exchange_pair(exchange_name, config, use_public_api)
                     print(f"✅ {exchange_name.upper()} connected")
+                    return exchange_name, result
                 except Exception as e:
                     print(f"⚠️ {exchange_name.upper()} failed: {e}")
+            return exchange_name, None
+
+        # 병렬로 모든 거래소 연결
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for exchange_name, config in EXCHANGES_CONFIG.items():
+                future = executor.submit(connect_exchange, exchange_name, config, use_public_api)
+                futures.append(future)
+
+            # 결과 수집
+            for future in concurrent.futures.as_completed(futures):
+                exchange_name, result = future.result()
+                # _create_exchange_pair가 이미 self.exchanges에 추가하므로 별도 처리 불필요
 
         if not self.exchanges:
             raise RuntimeError("No exchanges available. Check API keys.")

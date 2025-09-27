@@ -9,9 +9,9 @@ from typing import Dict, Any
 load_dotenv()
 
 # Trading Parameters
-ENTRY_AMOUNT = 20.0              # Base USDT amount per entry
+ENTRY_AMOUNT = 10.0              # Base USDT amount per entry
 MAX_ENTRIES = 40                 # Maximum number of hedge entries
-PRICE_DIFF_THRESHOLD = 0.0021    # Minimum spread for entry (0.21%)
+PRICE_DIFF_THRESHOLD = 0.0021   # Minimum spread for entry (0.21%)
 SLEEP_SEC = 10                   # Check interval in seconds
 FUTURES_LEVERAGE = 1             # 항상 1x 레버리지 (델타 중립 필수)
 SLIPPAGE = 0.004                # Slippage tolerance (0.4%)
