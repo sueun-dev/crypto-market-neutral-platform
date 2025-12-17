@@ -50,9 +50,8 @@
 # UV 설치 (아직 없다면)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 가상환경 생성 및 패키지 설치
-uv venv
-uv pip install ccxt python-dotenv requests
+# 프로젝트 의존성 설치 (개발 도구 포함)
+uv sync --dev
 ```
 
 ## 환경 설정
@@ -80,11 +79,20 @@ OKX_API_PASSWORD=your_password
 
 ## 사용법
 
-### Phase 1: 헤지 포지션 구축 (main.py)
+### Unified CLI (추천)
 
 ```bash
-# 헤지 봇 실행
-uv run python main.py
+# 통합 메뉴 실행
+uv run hedge
+```
+
+실행 중 생성되는 상태/캐시/로그는 기본적으로 `runtime/` 아래에 저장됩니다. (필요 시 `OEH_RUNTIME_DIR`로 위치 변경 가능)
+
+### 해외 헤지 진입 (Step3/5)
+
+```bash
+# 통합 메뉴에서 3(수동) 또는 5(자동) 선택
+uv run hedge
 ```
 
 #### 실행 옵션:
@@ -115,11 +123,11 @@ uv run python main.py
 ✅ BYBIT Spot Buy: 1.19 IP for $10.00
 ```
 
-### Phase 2: 김치 프리미엄 Exit (exit.py)
+### 김치 프리미엄 Exit (Step4)
 
 ```bash
 # 통합 Exit Manager 실행
-uv run python exit.py
+uv run hedge-exit
 ```
 
 #### 주요 기능:
@@ -158,17 +166,19 @@ uv run python exit.py
 ### 추가 도구
 
 ```bash
-# 실시간 가격 테스트 (거래 없음)
-uv run python tests/test_prices.py
-uv run python tests/test_manual.py
+# 전체 테스트/품질 게이트
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src tests
+uv run pytest
 
 # 상태 파일 관리
-rm exit_state.json  # Exit 상태 초기화
+rm -f runtime/state/exit_state.json  # Exit 상태 초기화
 ```
 
 ## 설정 변경
 
-`config.py`에서 조정 가능:
+`src/overseas_exchange_hedge/config.py`에서 조정 가능:
 
 ```python
 ENTRY_AMOUNT = 20.0              # 회당 진입 금액 (USDT)
@@ -204,3 +214,9 @@ rm -rf .venv
 uv venv
 uv pip install ccxt python-dotenv requests
 ```
+
+
+
+
+
+bytbit deposit/withdraw status: https://www.bybit.com/x-api/v3/private/cht/asset-common/coin-status
