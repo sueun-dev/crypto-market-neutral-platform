@@ -30,3 +30,7 @@ ENV/
 .DS_Store
 *.log
 positions.json
+runtime/
+.coverage
+.mypy_cache/
+.pytest_cache/
