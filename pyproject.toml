@@ -3,6 +3,10 @@ name = "crypto-market-neutral-platform"
 version = "1.0.0"
 description = "Market-neutral automation platform for KRW premium and cross-exchange basis workflows"
 requires-python = ">=3.9"
+authors = [
+    { name = "sueun-dev", email = "sueun.dev@gmail.com" },
+]
+license = "MIT"
 dependencies = [
     "ccxt>=4.0.0",
     "gate-api>=6.104.0",
