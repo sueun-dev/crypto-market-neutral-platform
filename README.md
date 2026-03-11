@@ -1,6 +1,6 @@
 # Crypto Market Neutral Platform
 
-KRW 프리미엄과 해외 거래소간 현물/선물 스프레드를 활용하는 시장중립 자동화 플랫폼입니다. 기존 `overseas_exchange_hedge`를 기반으로 `hedge-pilot`, `contango-hunter` 흐름을 흡수했습니다.
+KRW 프리미엄과 해외 거래소간 현물/선물 스프레드를 활용하는 시장중립 자동화 플랫폼입니다. 기존 `overseas_exchange_hedge`를 기반으로 한국 진입 워크플로와 해외 자동 진입 워크플로를 통합했습니다.
 
 ## 핵심 기능
 
@@ -88,16 +88,16 @@ uv run market-neutral
 
 실행 중 생성되는 상태/캐시/로그는 기본적으로 `runtime/` 아래에 저장됩니다. (필요 시 `OEH_RUNTIME_DIR`로 위치 변경 가능)
 
-### 흡수된 레거시 플로우
+### 흡수된 워크플로
 
 ```bash
-# 한국 거래소 기준 진입 (legacy hedge-pilot)
+# 한국 거래소 기준 진입
 uv run market-neutral-korea-entry
 
 # 해외 거래소 수동 진입
 uv run market-neutral-overseas-entry-manual
 
-# 해외 거래소 자동 진입 (legacy contango-hunter)
+# 해외 거래소 자동 진입
 uv run market-neutral-overseas-entry-auto
 
 # 한국 프리미엄 청산

@@ -17,11 +17,11 @@
 
 워크플로 매핑
 -------------
-- Korea entry (legacy `hedge-pilot` 흡수): `overseas_exchange_hedge.korea.redflag.app:main`
+- Korea entry: `overseas_exchange_hedge.korea.redflag.app:main`
 - Overseas unwind: `overseas_exchange_hedge.overseas.app:run_overseas_unwind`
 - Overseas manual entry: `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="manual")`
 - Korea premium exit: `overseas_exchange_hedge.korea.exit.app:main` (`UnifiedExitManager`)
-- Overseas auto entry (legacy `contango-hunter` 흡수): `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="auto")`
+- Overseas auto entry: `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="auto")`
 
 런타임 파일(상태/캐시/로그)
 --------------------------
