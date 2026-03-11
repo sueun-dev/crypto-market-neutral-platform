@@ -1,7 +1,7 @@
 [project]
-name = "hedge-bot"
+name = "crypto-market-neutral-platform"
 version = "1.0.0"
-description = "Multi-exchange delta-neutral hedge bot"
+description = "Market-neutral automation platform for KRW premium and cross-exchange basis workflows"
 requires-python = ">=3.9"
 dependencies = [
     "ccxt>=4.0.0",
@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [project.scripts]
+market-neutral = "overseas_exchange_hedge.cli:main"
+market-neutral-korea-entry = "overseas_exchange_hedge.cli:market_neutral_korea_entry"
+market-neutral-overseas-unwind = "overseas_exchange_hedge.cli:market_neutral_overseas_unwind"
+market-neutral-overseas-entry-auto = "overseas_exchange_hedge.cli:market_neutral_overseas_entry_auto"
+market-neutral-overseas-entry-manual = "overseas_exchange_hedge.cli:market_neutral_overseas_entry_manual"
+market-neutral-korea-exit = "overseas_exchange_hedge.cli:market_neutral_korea_exit"
 hedge = "overseas_exchange_hedge.cli:main"
 hedge-exit = "overseas_exchange_hedge.korea.exit.app:main"
 hedge-redflag = "overseas_exchange_hedge.korea.redflag.app:main"
@@ -40,7 +46,7 @@ testpaths = ["tests"]
 target-version = "py311"
 line-length = 120
 src = ["src"]
-extend-exclude = ["runtime"]
+extend-exclude = ["legacy-imports", "runtime"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

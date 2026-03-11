@@ -1,6 +1,6 @@
-# Multi-Exchange Delta Neutral Hedge Bot
+# Crypto Market Neutral Platform
 
-해외 거래소간 현물/선물 스프레드를 활용한 델타 중립 헤지 봇 (Gate.io, Bybit, OKX)
+KRW 프리미엄과 해외 거래소간 현물/선물 스프레드를 활용하는 시장중립 자동화 플랫폼입니다. 기존 `overseas_exchange_hedge`를 기반으로 `hedge-pilot`, `contango-hunter` 흐름을 흡수했습니다.
 
 ## 핵심 기능
 
@@ -83,16 +83,37 @@ OKX_API_PASSWORD=your_password
 
 ```bash
 # 통합 메뉴 실행
-uv run hedge
+uv run market-neutral
 ```
 
 실행 중 생성되는 상태/캐시/로그는 기본적으로 `runtime/` 아래에 저장됩니다. (필요 시 `OEH_RUNTIME_DIR`로 위치 변경 가능)
 
-### 해외 헤지 진입 (Step3/5)
+### 흡수된 레거시 플로우
+
+```bash
+# 한국 거래소 기준 진입 (legacy hedge-pilot)
+uv run market-neutral-korea-entry
+
+# 해외 거래소 수동 진입
+uv run market-neutral-overseas-entry-manual
+
+# 해외 거래소 자동 진입 (legacy contango-hunter)
+uv run market-neutral-overseas-entry-auto
+
+# 한국 프리미엄 청산
+uv run market-neutral-korea-exit
+
+# 해외 포지션 청산
+uv run market-neutral-overseas-unwind
+```
+
+기존 `hedge`, `hedge-exit`, `hedge-redflag` 명령도 호환성 때문에 유지합니다.
+
+### 해외 헤지 진입
 
 ```bash
 # 통합 메뉴에서 3(수동) 또는 5(자동) 선택
-uv run hedge
+uv run market-neutral
 ```
 
 #### 실행 옵션:
@@ -123,11 +144,11 @@ uv run hedge
 ✅ BYBIT Spot Buy: 1.19 IP for $10.00
 ```
 
-### 김치 프리미엄 Exit (Step4)
+### 김치 프리미엄 Exit
 
 ```bash
 # 통합 Exit Manager 실행
-uv run hedge-exit
+uv run market-neutral-korea-exit
 ```
 
 #### 주요 기능:

@@ -1,12 +1,12 @@
 전체 시스템 동작 정리
 ====================
 
-이 프로젝트는 `src/` 레이아웃을 사용한다. 주요 실행 진입점은 통합 CLI(`uv run hedge`)이며, 각 Step은 모듈로 분리되어 있다.
+이 프로젝트는 `src/` 레이아웃을 사용한다. 주요 실행 진입점은 통합 CLI(`uv run market-neutral`)이며, 각 워크플로는 모듈로 분리되어 있다.
 
 프로젝트 구조(핵심)
 ------------------
 - `src/overseas_exchange_hedge/`
-  - `cli.py`: 통합 메뉴 (Step1~5)
+  - `cli.py`: 통합 메뉴 및 직접 실행용 모드 alias
   - `common/`: 런타임 경로/유틸
   - `config.py`: 공통 설정(거래/수수료/거래소 API)
   - `overseas/`: 해외 현물+선물 헤지 진입/청산
@@ -15,13 +15,13 @@
 - `tests/`: 오프라인 단위 테스트(실거래 없음)
 - `runtime/`: 실행 중 생성되는 state/cache/logs (기본)
 
-Step 매핑
----------
-- Step1 (레드플래그 진입): `overseas_exchange_hedge.korea.redflag.app:main`
-- Step2 (해외 포지션 청산): `overseas_exchange_hedge.overseas.app:run_overseas_unwind`
-- Step3 (수동 해외 진입): `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="manual")`
-- Step4 (김프 Exit): `overseas_exchange_hedge.korea.exit.app:main` (`UnifiedExitManager`)
-- 자동 모드 (해외 자동 진입): `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="auto")`
+워크플로 매핑
+-------------
+- Korea entry (legacy `hedge-pilot` 흡수): `overseas_exchange_hedge.korea.redflag.app:main`
+- Overseas unwind: `overseas_exchange_hedge.overseas.app:run_overseas_unwind`
+- Overseas manual entry: `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="manual")`
+- Korea premium exit: `overseas_exchange_hedge.korea.exit.app:main` (`UnifiedExitManager`)
+- Overseas auto entry (legacy `contango-hunter` 흡수): `overseas_exchange_hedge.overseas.app:run_overseas_entry(entry_mode="auto")`
 
 런타임 파일(상태/캐시/로그)
 --------------------------

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if command -v uv >/dev/null 2>&1; then
-  exec uv run hedge
+  exec uv run market-neutral
 fi
 
 export PYTHONPATH="${PYTHONPATH:-}:src"
