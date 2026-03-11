@@ -1,3 +1,0 @@
-"""
-Exchange-specific tests
-"""

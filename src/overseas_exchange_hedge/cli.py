@@ -46,11 +46,11 @@ def _select_mode() -> str:
     logger.info("\n" + "=" * 60)
     logger.info("Market-Neutral Workflow Selection")
     logger.info("=" * 60)
-    logger.info("1. Korea basis entry (legacy hedge-pilot absorbed)")
+    logger.info("1. Korea basis entry")
     logger.info("2. Overseas unwind (spot + perp)")
     logger.info("3. Overseas basis entry - manual venue selection")
     logger.info("4. Korea premium exit / position cleanup")
-    logger.info("5. Overseas basis entry - auto venue discovery (legacy contango-hunter absorbed)")
+    logger.info("5. Overseas basis entry - auto venue discovery")
     logger.info("0. 종료")
     return input("\n모드 선택 (0-5) [5]: ").strip() or "5"
 
