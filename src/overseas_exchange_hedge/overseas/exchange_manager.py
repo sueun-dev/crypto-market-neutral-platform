@@ -163,7 +163,7 @@ class ExchangeManager:
         """Retrieves deposit/withdraw flags for OKX via the public status API."""
         deposit_ok: Optional[bool] = None
         withdraw_ok: Optional[bool] = None
-        headers = {"User-Agent": "hedge-bot/1.0"}
+        headers = {"User-Agent": "crypto-market-neutral-platform/1.0"}
         max_pages = 16
 
         rows_iterable: list[Any] = []

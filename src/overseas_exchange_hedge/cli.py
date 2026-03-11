@@ -1,46 +1,138 @@
-"""Unified interactive CLI for hedge workflows."""
+"""Unified CLI for market-neutral hedge workflows."""
 
 from __future__ import annotations
 
+import argparse
 import logging
-from typing import Callable, Dict
+import sys
+from collections.abc import Callable, Sequence
 
 from .common.logging_utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
+ModeHandler = Callable[[], None]
+
+INTERACTIVE_CHOICES = {
+    "1": "korea-entry",
+    "2": "overseas-unwind",
+    "3": "overseas-entry-manual",
+    "4": "korea-exit",
+    "5": "overseas-entry-auto",
+}
+
+MODE_ALIASES = {
+    "korea-entry": "korea-entry",
+    "redflag": "korea-entry",
+    "step1": "korea-entry",
+    "overseas-unwind": "overseas-unwind",
+    "step2": "overseas-unwind",
+    "overseas-entry-manual": "overseas-entry-manual",
+    "manual": "overseas-entry-manual",
+    "contango-manual": "overseas-entry-manual",
+    "step3": "overseas-entry-manual",
+    "korea-exit": "korea-exit",
+    "exit": "korea-exit",
+    "step4": "korea-exit",
+    "overseas-entry-auto": "overseas-entry-auto",
+    "auto": "overseas-entry-auto",
+    "contango-auto": "overseas-entry-auto",
+    "contango": "overseas-entry-auto",
+    "step5": "overseas-entry-auto",
+}
+
 
 def _select_mode() -> str:
     logger.info("\n" + "=" * 60)
-    logger.info("헤지 모드 선택")
+    logger.info("Market-Neutral Workflow Selection")
     logger.info("=" * 60)
-    logger.info("1. Step1 - 한국거래소 레드플래그 진입 봇")
-    logger.info("2. Step2 - 해외 포지션 청산 (현물+선물)")
-    logger.info("3. Step3(수동) - 특정 거래소 선택 (해외 헤지 진입)")
-    logger.info("4. Step4 - 김프 청산/포지션 정리 (Exit)")
-    logger.info("5. 자동 모드 - 모든 거래소에서 최적 조합 찾기 (해외 헤지 진입)")
+    logger.info("1. Korea basis entry (legacy hedge-pilot absorbed)")
+    logger.info("2. Overseas unwind (spot + perp)")
+    logger.info("3. Overseas basis entry - manual venue selection")
+    logger.info("4. Korea premium exit / position cleanup")
+    logger.info("5. Overseas basis entry - auto venue discovery (legacy contango-hunter absorbed)")
     logger.info("0. 종료")
     return input("\n모드 선택 (0-5) [5]: ").strip() or "5"
 
 
-def main() -> None:
-    setup_logging()
-    handlers: Dict[str, Callable[[], None]] = {
-        "1": _run_step1_redflag_entry,
-        "2": _run_step2_overseas_unwind,
-        "3": _run_step3_overseas_manual_entry,
-        "4": _run_step4_kimchi_exit,
-        "5": _run_overseas_auto_entry,
+def _build_handlers() -> dict[str, ModeHandler]:
+    return {
+        "korea-entry": _run_step1_redflag_entry,
+        "overseas-unwind": _run_step2_overseas_unwind,
+        "overseas-entry-manual": _run_step3_overseas_manual_entry,
+        "korea-exit": _run_step4_kimchi_exit,
+        "overseas-entry-auto": _run_overseas_auto_entry,
     }
+
+
+def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="market-neutral",
+        description="Unified market-neutral hedge workflows",
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        help="Direct mode: korea-entry, overseas-unwind, overseas-entry-manual, korea-exit, overseas-entry-auto",
+    )
+    return parser.parse_args(list(argv))
+
+
+def _dispatch_mode(mode: str, handlers: dict[str, ModeHandler]) -> None:
+    handler = handlers.get(mode)
+    if not handler:
+        logger.error("❌ 올바르지 않은 선택입니다.")
+        raise SystemExit(2)
+    handler()
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    setup_logging()
+    handlers = _build_handlers()
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.mode:
+        if args.mode in {"0", "q", "quit"}:
+            return
+        canonical = MODE_ALIASES.get(args.mode)
+        if not canonical:
+            logger.error("❌ 지원하지 않는 모드입니다: %s", args.mode)
+            raise SystemExit(2)
+        _dispatch_mode(canonical, handlers)
+        return
 
     choice = _select_mode()
     if choice in {"0", "q", "quit", "exit"}:
         return
-    handler = handlers.get(choice)
-    if not handler:
+    canonical = INTERACTIVE_CHOICES.get(choice) or MODE_ALIASES.get(choice)
+    if not canonical:
         logger.error("❌ 올바르지 않은 선택입니다. (0-5)")
         return
-    handler()
+    _dispatch_mode(canonical, handlers)
+
+
+def market_neutral_main() -> None:
+    main([])
+
+
+def market_neutral_korea_entry() -> None:
+    main(["korea-entry"])
+
+
+def market_neutral_overseas_unwind() -> None:
+    main(["overseas-unwind"])
+
+
+def market_neutral_overseas_entry_auto() -> None:
+    main(["overseas-entry-auto"])
+
+
+def market_neutral_overseas_entry_manual() -> None:
+    main(["overseas-entry-manual"])
+
+
+def market_neutral_korea_exit() -> None:
+    main(["korea-exit"])
 
 
 def _run_overseas_auto_entry() -> None:

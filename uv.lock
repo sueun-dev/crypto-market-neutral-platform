@@ -799,7 +799,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hedge-bot"
+name = "crypto-market-neutral-platform"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
