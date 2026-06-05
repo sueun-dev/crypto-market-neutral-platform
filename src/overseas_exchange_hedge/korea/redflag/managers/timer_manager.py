@@ -82,41 +82,8 @@ class TimerManager:
         if symbol in self.stage_timers:
             self.stage_timers[symbol][premium_level] = datetime.now()
 
-    def reset_timer(self, symbol: str, premium_level: float) -> Optional[datetime]:
-        """타이머를 리셋하고 이전 값을 반환한다."""
-        if symbol in self.stage_timers:
-            old_timer = self.stage_timers[symbol].get(premium_level)
-            self.stage_timers[symbol][premium_level] = None
-            logger.info(f"{symbol} {premium_level}% 타이머 리셋됨")
-            return old_timer
-        return None
-
     def remove_symbol(self, symbol: str) -> None:
         """심볼의 모든 타이머를 제거한다."""
         if symbol in self.stage_timers:
             del self.stage_timers[symbol]
             logger.info(f"{symbol} 타이머 제거됨")
-
-    def get_timer_status(self, symbol: str) -> Dict[float, str]:
-        """타이머 상태를 조회한다."""
-        if symbol not in self.stage_timers:
-            return {}
-
-        status: Dict[float, str] = {}
-        current_time = datetime.now()
-
-        for level, timer_start in self.stage_timers[symbol].items():
-            if timer_start:
-                elapsed = current_time - timer_start
-                remaining = self.timer_duration - elapsed
-
-                if remaining.total_seconds() > 0:
-                    minutes = int(remaining.total_seconds() // 60)
-                    seconds = int(remaining.total_seconds() % 60)
-                    status[level] = f"{minutes}분 {seconds}초 남음"
-                else:
-                    status[level] = "만료됨"
-            else:
-                status[level] = "미설정"
-
-        return status

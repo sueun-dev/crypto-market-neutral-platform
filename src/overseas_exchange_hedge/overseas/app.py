@@ -417,8 +417,15 @@ def _maybe_partial_unwind(
         if quantity_to_close <= 1e-8:
             continue
         try:
-            spot_filled = trade_executor.execute_spot_sell(spot_pair, quantity_to_close, coin)
+            # 델타 중립 유지: perp 커버를 먼저 체결한 뒤 그 체결량만큼만 현물을 판다.
+            # (현물을 먼저 팔면 perp 커버가 실패/부분체결될 때 net-short로 노출된다.
+            #  run_overseas_unwind 의 레그 순서와 동일하게 맞춤.)
             perp_filled = trade_executor.execute_perp_cover(perp_pair, quantity_to_close, coin)
+            if perp_filled <= 0:
+                logger.warning("⚠️ Partial unwind: perp 커버 체결 없음; 현물 매도 생략.")
+                break
+            spot_qty = min(perp_filled, quantity_to_close)
+            spot_filled = trade_executor.execute_spot_sell(spot_pair, spot_qty, coin)
             actual_qty = min(spot_filled, perp_filled)
             if actual_qty > 0:
                 position_tracker.reduce_pair_position(spot_pair, perp_pair, actual_qty)
