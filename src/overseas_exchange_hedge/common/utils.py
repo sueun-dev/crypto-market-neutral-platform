@@ -59,7 +59,7 @@ def format_percentage(value: float, decimals: int = 3) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
-def validate_api_keys(config: Dict[str, Dict]) -> Dict[str, bool]:
+def validate_api_keys(config: Dict[str, Dict[str, Any]]) -> Dict[str, bool]:
     """Validates which exchanges have usable API keys configured.
 
     Args:

@@ -70,9 +70,6 @@ class PositionTracker:
         spot_fee = self._get_fee(spot_exchange, "spot")
         perp_fee = self._get_fee(perp_exchange, "futures")
 
-        spot_unit_with_fee = spot_price * (1 + spot_fee)
-        perp_unit_after_fee = perp_price * (1 - perp_fee)
-
         entry: PositionEntry = {
             "timestamp": datetime.now().isoformat(),
             "coin": coin,
@@ -89,12 +86,8 @@ class PositionTracker:
         }
 
         self.positions["entries"].append(entry)
-        self.positions["total_quantity"] += quantity
-        self.positions["total_cost_usdt"] += entry["cost_usdt"]
-        self.positions["average_price"] = self.positions["total_cost_usdt"] / self.positions["total_quantity"]
-
-        self.positions["total_spot_cost"] += spot_unit_with_fee * quantity
-        self.positions["total_perp_proceeds"] += perp_unit_after_fee * quantity
+        # Aggregate metrics (totals + averages) are derived from `entries` in a
+        # single place; recompute rather than maintaining duplicate running sums.
         self._recompute_totals()
         self.save_positions()
         return entry

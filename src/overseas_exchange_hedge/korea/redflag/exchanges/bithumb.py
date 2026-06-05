@@ -12,6 +12,10 @@ from typing import Dict, Optional
 
 import requests
 
+# Network timeout (seconds) for all HTTP calls; prevents the trading loop from
+# hanging indefinitely on a stalled connection.
+REQUEST_TIMEOUT = 10
+
 
 class BithumbExchange:
     """Bithumb Native API 거래소 구현"""
@@ -59,7 +63,7 @@ class BithumbExchange:
             if params:
                 url += f"/{params.get('order_currency', 'ALL')}_{params.get('payment_currency', 'KRW')}"
 
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=REQUEST_TIMEOUT)
             data = response.json()
 
             if data.get("status") == "0000":
@@ -77,7 +81,7 @@ class BithumbExchange:
             url = f"{self.private_api_url}{endpoint}"
             headers = self._create_signature(endpoint, params)
 
-            response = self.session.post(url, headers=headers, data=params)
+            response = self.session.post(url, headers=headers, data=params, timeout=REQUEST_TIMEOUT)
             data = response.json()
 
             if data.get("status") == "0000":

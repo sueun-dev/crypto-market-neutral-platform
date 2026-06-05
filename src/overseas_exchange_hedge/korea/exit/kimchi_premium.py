@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
@@ -82,8 +83,6 @@ class KimchiPremiumCalculator:
         Returns:
             Tuple of (premium percentage or None, price details dictionary).
         """
-        import concurrent.futures
-
         details: Dict[str, Any] = {
             "korean_exchange": korean_exchange,
             "overseas_exchange": overseas_exchange,
