@@ -285,23 +285,6 @@ class OrderExecutor:
             return quantity
         return futures_quantity * contract_size
 
-    def _check_minimum_order_size(self, actual_usd: float, target_usd: float) -> bool:
-        """최소 주문 크기를 만족하는지 확인한다."""
-        from ..config.settings import settings
-
-        korean_min = settings.MIN_ORDER_SIZES.get(self.korean_exchange.exchange_id.lower(), 0)
-        futures_min = settings.MIN_ORDER_SIZES.get(self.futures_exchange.exchange_id.lower(), 0)
-
-        if actual_usd < korean_min:
-            logger.error(f"한국 거래소 최소 주문 크기 미달: ${actual_usd:.2f} < ${korean_min}")
-            return False
-
-        if target_usd < futures_min:
-            logger.error(f"선물 거래소 최소 주문 크기 미달: ${target_usd:.2f} < ${futures_min}")
-            return False
-
-        return True
-
     def _check_balances(self, krw_amount: float, usd_amount: float) -> bool:
         """필요한 잔고가 충분한지 확인한다."""
         try:

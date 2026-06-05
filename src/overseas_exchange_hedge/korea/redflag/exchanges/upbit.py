@@ -11,6 +11,10 @@ from urllib.parse import urlencode
 import jwt
 import requests
 
+# Network timeout (seconds) for all HTTP calls; prevents the trading loop from
+# hanging indefinitely on a stalled connection.
+REQUEST_TIMEOUT = 10
+
 
 class UpbitExchange:
     """Upbit Native API 거래소 구현"""
@@ -57,11 +61,11 @@ class UpbitExchange:
             if method == "GET":
                 jwt_token = self._create_jwt_token()
                 headers = {"Authorization": f"Bearer {jwt_token}"}
-                response = self.session.get(url, headers=headers, params=params)
+                response = self.session.get(url, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
             else:  # POST
                 jwt_token = self._create_jwt_token(params)
                 headers = {"Authorization": f"Bearer {jwt_token}", "Content-Type": "application/json"}
-                response = self.session.post(url, headers=headers, json=params)
+                response = self.session.post(url, headers=headers, json=params, timeout=REQUEST_TIMEOUT)
 
             if response.status_code == 200 or response.status_code == 201:
                 return response.json()
@@ -82,7 +86,7 @@ class UpbitExchange:
 
             # Public API doesn't need authentication
             url = f"{self.api_url}/v1/ticker"
-            response = self.session.get(url, params={"markets": market})
+            response = self.session.get(url, params={"markets": market}, timeout=REQUEST_TIMEOUT)
 
             if response.status_code == 200:
                 data = response.json()

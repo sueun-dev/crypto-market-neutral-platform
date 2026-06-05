@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import os
 import time
@@ -29,7 +30,6 @@ class KoreanExchangeManager:
 
     def initialize_exchanges(self):
         """Initializes Bithumb and Upbit connections in parallel."""
-        import concurrent.futures
 
         def connect_bithumb():
             bithumb_key = os.getenv("BITHUMB_API_KEY", "")
