@@ -143,7 +143,8 @@ class HedgeBot:
             success = self.order_executor.execute_hedge_position(symbol, increment)
 
             if success:
-                self.position_manager.update_position(symbol, increment)
+                # 의도 금액을 더하는 대신 거래소 현물 잔고 기준으로 재동기화
+                self._resync_position(symbol)
                 logger.info(f"📈 {symbol} 포지션 구축: ${increment:.2f}")
                 self.failed_attempts[symbol] = 0
             else:
@@ -151,6 +152,17 @@ class HedgeBot:
 
         finally:
             self.orders_in_progress.discard(order_key)
+
+    def _resync_position(self, symbol: str) -> None:
+        """거래소 현물 잔고 기준으로 포지션 USD 가치를 재동기화한다.
+
+        부분 체결/`min()` 클램프로 인해 의도한 금액과 실제 체결이 달라질 수 있으므로,
+        주문 후에는 항상 실제 잔고에서 가치를 다시 읽어 장부 드리프트를 방지한다.
+        """
+        actual_value = self.position_manager.get_existing_positions(
+            symbol, self.korean_exchange, self.futures_exchange
+        )
+        self.position_manager.get_position(symbol).value_usd = actual_value
 
     def _check_profit_taking(self, symbol: str, premium: float, position_value: float) -> None:
         """프리미엄 조건에 따라 이익 실현 여부를 판단한다."""
@@ -200,24 +212,17 @@ class HedgeBot:
         order_key = (symbol, f"close_{close_percentage}")
         self.orders_in_progress.add(order_key)
 
+        # 타이머(쿨다운)는 TimerManager.check_profit_taking 이 단계 선택 시점에 이미 설정한다.
+        # 여기서 중복 설정/복원하던 로직은 stage_timers 직접 변경으로 KeyError 위험이 있어 제거.
         try:
-            # 타이머 먼저 설정 (중복 주문 방지)
-            old_timer = self.timer_manager.reset_timer(symbol, target_premium)
-            self.timer_manager.set_timer(symbol, target_premium)
-
             success = self.order_executor.close_position_percentage(symbol, close_percentage, position_value)
 
             if success:
-                # 포지션 업데이트
-                close_amount = position_value * (close_percentage / 100)
-                self.position_manager.update_position(symbol, -close_amount)
-
+                # 의도 금액 차감 대신 거래소 잔고 기준 재동기화 (min() 클램프 드리프트 방지)
+                self._resync_position(symbol)
                 logger.info(f"💰 {symbol} {close_percentage}% 이익 실현!")
                 self.failed_attempts[symbol] = 0
             else:
-                # 실패시 타이머 복원
-                if old_timer:
-                    self.timer_manager.stage_timers[symbol][target_premium] = old_timer
                 logger.error(f"❌ {symbol} {target_premium}% 이익 실패. 재시도.")
                 self._handle_failure(symbol)
 
