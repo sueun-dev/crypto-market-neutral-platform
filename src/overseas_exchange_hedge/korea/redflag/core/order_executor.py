@@ -44,12 +44,20 @@ class OrderExecutor:
 
             krw_ask_price, futures_bid_price, usdt_krw_rate = prices
 
-            # 수량 계산
+            # 수량 계산 (양 레그가 동일한 코인 수량을 보유해야 델타 중립)
             quantity = amount_usd / futures_bid_price
 
             # 빗썸은 8자리 반올림
             if self.korean_exchange.exchange_id.lower() == "bithumb":
                 quantity = round(quantity, 8)
+
+            # 선물 수량 계산 (GateIO는 정수 계약 단위)
+            futures_quantity = self._calculate_futures_quantity(symbol, quantity)
+            if futures_quantity is None:
+                return False
+
+            # GateIO 정수 계약 그리드에 맞춰 현물 수량 재산출 (레그 불일치 방지)
+            quantity = self._match_spot_to_futures(symbol, quantity, futures_quantity)
 
             # KRW 금액 계산
             krw_amount = quantity * krw_ask_price
@@ -61,13 +69,8 @@ class OrderExecutor:
             if not self._check_balances(krw_amount, amount_usd):
                 return False
 
-            # 선물 수량 계산 (GateIO는 계약 단위)
-            futures_quantity = self._calculate_futures_quantity(symbol, quantity)
-            if futures_quantity is None:
-                return False
-
-            # 동시 주문 실행
-            success = self._execute_concurrent_orders(symbol, quantity, futures_quantity, "open")
+            # 동시 주문 실행 (이미 검증한 KRW 금액을 그대로 전달)
+            success = self._execute_concurrent_orders(symbol, quantity, futures_quantity, "open", krw_amount)
 
             if success:
                 logger.info(f"헤지 포지션 실행 성공: {quantity:.4f} {symbol} (포지션 가치: ${amount_usd:.2f})")
@@ -247,24 +250,40 @@ class OrderExecutor:
                         logger.error(f"{symbol} contract_size 정보 없음")
                         return None
 
-                    # Gate.io는 소수점 계약 지원 - 정확한 수량 계산
-                    contracts = quantity / contract_size
+                    # Gate.io 선물 size는 정수 계약만 허용 → 가장 가까운 정수로 반올림.
+                    # (내림하면 숏 레그가 현물보다 작아져 롱 노출이 생긴다.)
+                    contracts = round(quantity / contract_size)
 
-                    # 최소 1 USD 확인 (BTC $70,000 기준 약 0.143 contracts)
+                    # 최소 1 계약 확인
                     if contracts < 1:
-                        logger.error(f"수량이 너무 작음: {quantity:.4f} {symbol} = {contracts:.4f} contracts (최소: 1)")
+                        logger.error(f"수량이 너무 작음: {quantity:.4f} {symbol} = {contracts} contracts (최소: 1)")
                         return None
 
                     logger.info(
-                        f"GateIO 선물: {quantity:.8f} {symbol} = {contracts:.4f} contracts (계약 크기: {contract_size})"
+                        f"GateIO 선물: {quantity:.8f} {symbol} = {contracts} contracts (계약 크기: {contract_size})"
                     )
-                    return contracts
+                    return float(contracts)
 
             return quantity
 
         except Exception as e:
             logger.error(f"선물 수량 계산 실패: {e}")
             return None
+
+    def _match_spot_to_futures(self, symbol: str, quantity: float, futures_quantity: float) -> float:
+        """GateIO 정수 계약 그리드에 맞춰 현물 코인 수량을 재산출한다.
+
+        GateIO는 ``futures_quantity``가 계약 수이므로 실제 숏 코인 수량 =
+        계약 수 × 계약 크기. 두 레그가 같은 코인 수량을 보유하도록 현물 수량을 맞춘다.
+        다른 거래소(수량 단위)는 그대로 둔다.
+        """
+        if self.futures_exchange.exchange_id.lower() != "gateio":
+            return quantity
+        markets = self.futures_exchange.get_markets()
+        contract_size = markets.get(f"{symbol}/USDT:USDT", {}).get("contract_size")
+        if not contract_size:
+            return quantity
+        return futures_quantity * contract_size
 
     def _check_minimum_order_size(self, actual_usd: float, target_usd: float) -> bool:
         """최소 주문 크기를 만족하는지 확인한다."""
@@ -301,11 +320,17 @@ class OrderExecutor:
             return True
 
         except Exception as e:
-            logger.warning(f"잔고 확인 실패: {e}. 주의하여 진행.")
-            return True
+            # Fail closed: never place real orders when we cannot confirm funds.
+            logger.error(f"잔고 확인 실패: {e}. 안전을 위해 주문을 중단합니다.")
+            return False
 
     def _execute_concurrent_orders(
-        self, symbol: str, spot_quantity: float, futures_quantity: float, operation: str
+        self,
+        symbol: str,
+        spot_quantity: float,
+        futures_quantity: float,
+        operation: str,
+        krw_amount: Optional[float] = None,
     ) -> bool:
         """현물과 선물 주문을 동시에 실행한다."""
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -313,9 +338,10 @@ class OrderExecutor:
                 # 포지션 열기: 현물 매수 + 선물 숏
                 # Bithumb와 Upbit 모두 매수 시 KRW 금액을 받음
                 if self.korean_exchange.exchange_id.lower() in ["bithumb", "upbit"]:
-                    # 현재 가격으로 KRW 금액 계산
-                    ticker = self.korean_exchange.get_ticker(f"{symbol}/KRW")
-                    krw_amount = spot_quantity * ticker["ask"]
+                    # 이미 검증된 KRW 금액 사용 (티커 재조회로 인한 경쟁/None 역참조 방지)
+                    if krw_amount is None:
+                        logger.error("KRW 금액이 전달되지 않음")
+                        return False
                     spot_future = executor.submit(
                         self.korean_exchange.create_market_order, f"{symbol}/KRW", "buy", krw_amount
                     )

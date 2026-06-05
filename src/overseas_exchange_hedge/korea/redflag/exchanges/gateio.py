@@ -142,15 +142,15 @@ class GateIOExchange:
                 contract_info = self.futures_markets.get(symbol, {})
                 contract_size = contract_info.get("contract_size", 1)
 
-                # Convert amount to contracts
-                # OrderExecutor already converts to contracts via _calculate_futures_quantity
-                # So amount here is already in contracts
+                # Convert amount to contracts. Gate.io futures `size` must be an
+                # integer number of contracts, so round (not truncate) to the nearest
+                # whole contract — truncating silently under-hedged the short leg.
                 if params and params.get("from_order_executor"):
-                    # Amount is already in contracts from OrderExecutor
-                    contracts = int(amount)
+                    # Amount is already in (integer-valued) contracts from OrderExecutor.
+                    contracts = round(amount)
                 else:
-                    # Direct API call, convert from coin amount to contracts
-                    contracts = int(amount / contract_size)
+                    # Direct API call, convert from coin amount to contracts.
+                    contracts = round(amount / contract_size)
 
                 if contracts < 1:
                     self.logger.error(f"Contract amount too small: {amount} {symbol} = {contracts} contracts")
@@ -169,13 +169,16 @@ class GateIOExchange:
 
                 self.logger.info(f"Futures order placed: {symbol} {side} {contracts} contracts")
 
+                # `size`/`left` are signed (negative for shorts); use magnitudes so
+                # `filled` is always a non-negative contract count.
+                filled_size = abs(response.size) - abs(response.left or 0)
                 return {
                     "id": response.id,
                     "symbol": symbol,
                     "side": side,
                     "amount": contracts,
                     "status": response.status,
-                    "filled": response.size - response.left if response.left else response.size,
+                    "filled": filled_size,
                 }
             else:
                 # Spot order - not implemented yet
@@ -194,11 +197,21 @@ class GateIOExchange:
         return self.futures_markets
 
     def set_leverage(self, symbol: str, leverage: int) -> bool:
-        """Sets leverage for a symbol (no-op for native API)."""
+        """Set per-contract leverage on the USDT futures account.
+
+        Returns True only if leverage was actually applied. The previous
+        implementation was a silent no-op that returned True, so the "1x safety"
+        assumption upstream was never enforced.
+        """
         try:
-            # Gate.io uses cross margin by default, leverage is set per position
-            # This is handled automatically when opening positions
+            contract = symbol.replace("/USDT:USDT", "_USDT")
+            self.futures_api.update_position_leverage("usdt", contract, str(leverage))
             return True
+        except GateApiException as ex:
+            # DUAL_MODE / no-position accounts can reject this; surface it rather
+            # than silently claiming success.
+            self.logger.warning(f"Gate.io set_leverage not applied for {symbol}: {ex.label}")
+            return False
         except Exception as e:
             self.logger.error(f"Failed to set leverage: {e}")
             return False

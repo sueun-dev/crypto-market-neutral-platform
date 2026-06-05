@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Dict, List
 
+from ...common.constants import KOREAN_MIN_SELL_VALUE_KRW
 from ...common.logging_utils import setup_logging
 from ...common.paths import state_file
 from ...overseas.exchange_manager import ExchangeManager
@@ -48,9 +50,16 @@ class UnifiedExitManager:
         }
 
     def save_state(self):
-        """Writes the current state to disk."""
-        with self.state_path.open("w", encoding="utf-8") as f:
+        """Writes the current state to disk atomically.
+
+        Write to a temp file then os.replace so a crash mid-write cannot leave a
+        truncated exit_state.json (which load_state would silently reset to empty,
+        orphaning live exchange orders).
+        """
+        tmp_path = self.state_path.parent / (self.state_path.name + ".tmp")
+        with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(self.state, f, indent=2, default=str)
+        os.replace(tmp_path, self.state_path)
 
     def scan_futures_positions(self, coin: str) -> Dict:
         """Scans perpetual exchanges for open positions in the target coin.
@@ -81,7 +90,8 @@ class UnifiedExitManager:
                             "symbol": symbol,
                             "contracts": abs(pos.get("contracts", 0)),
                             "side": pos.get("side"),
-                            "entry_price": pos.get("markPrice", 0),
+                            # Prefer the real entry price; fall back to mark only if absent.
+                            "entry_price": pos.get("entryPrice", pos.get("markPrice", 0)),
                             "pnl": pos.get("unrealizedPnl", 0),
                         }
                         logger.info("  ✅ %s: %.4f %s 숏 포지션", exchange_name.upper(), abs(pos["contracts"]), coin)
@@ -178,25 +188,27 @@ class UnifiedExitManager:
 
             orders = []
 
-            # 김프에 따른 가격 레벨 설정 - 50%씩 2개 주문
-            if current_premium >= target_premium - 0.5:
-                # 김프가 목표에 근접 - 타이트한 주문
-                price_levels = [
-                    (current_price * 1.001, balance * 0.5),  # 50%
-                    (current_price * 1.002, balance * 0.5),  # 50%
-                ]
-            else:
-                # 김프가 낮음 - 넓은 범위
-                price_levels = [
-                    (current_price * 1.005, balance * 0.5),  # 50%
-                    (current_price * 1.010, balance * 0.5),  # 50%
-                ]
+            # [전략 가정] target_premium = 사용자가 지정한 "최소 체결 김프".
+            # 현재 김프가 그 미만이면 주문을 걸지 않는다. 예전 코드는 목표 미만에서도
+            # current_price*1.005 같은 넓은 가격에 주문을 걸어, 시장이 닿는 즉시 목표
+            # 미만 김프에서 체결되어 최소 체결 김프가 사실상 무시됐다.
+            if current_premium < target_premium:
+                logger.info(
+                    "    현재 김프 %.2f%% < 목표 %.2f%% — 주문 보류", current_premium, target_premium
+                )
+                return []
+
+            # 목표 김프 충족 - 현재가 근처 타이트한 2개 주문 (합계 잔고 100%)
+            price_levels = [
+                (current_price * 1.001, balance * 0.5),
+                (current_price * 1.002, balance * 0.5),
+            ]
 
             symbol = f"{coin}/KRW"
 
             for target_price, amount in price_levels:
-                # 최소 주문 금액 체크 (5,000원)
-                if target_price * amount < 5000:
+                # 최소 주문 금액 체크
+                if target_price * amount < KOREAN_MIN_SELL_VALUE_KRW:
                     continue
 
                 try:
@@ -299,14 +311,25 @@ class UnifiedExitManager:
             if pos_info["contracts"] <= 0:
                 continue
 
+            # reduce-only 매수는 숏만 줄인다. 롱 포지션에 매수를 내면 헤지를 깨므로 건너뛴다.
+            if pos_info.get("side") not in (None, "short"):
+                logger.warning(
+                    "  ⚠️ %s 포지션이 숏이 아님(%s) — 청산 건너뜀",
+                    exchange_name.upper(),
+                    pos_info.get("side"),
+                )
+                continue
+
             try:
                 ex = self.exchange_manager.exchanges[exchange_name]["perp"]
                 symbol = pos_info["symbol"]
 
-                # 청산할 수량 (최대 현재 포지션만큼)
+                # 청산 수량. [전략 가정] 선형 USDT 무기한은 1 계약 ≈ 1 코인이라고 보고
+                # 현물 매도 코인 수량(remaining)과 직접 비교한다. 계약 배수가 1이 아닌
+                # 종목(예: 1000PEPE)을 쓰면 거래소 contractSize로 정규화해야 한다.
                 close_amount = min(remaining, pos_info["contracts"])
 
-                # 숏 포지션 청산 (시장가 매수)
+                # 숏 포지션 청산 (reduce-only 시장가 매수 → 거래소가 롱 전환 방지)
                 ex.create_market_buy_order(symbol=symbol, amount=close_amount, params={"reduce_only": True})
 
                 logger.info("  ✅ %s 숏 청산: %.6f %s", exchange_name.upper(), close_amount, coin)

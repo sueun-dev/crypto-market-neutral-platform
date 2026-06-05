@@ -15,9 +15,6 @@ class Position:
 
     symbol: str
     value_usd: float = 0.0
-    spot_amount: float = 0.0
-    futures_contracts: int = 0
-    entry_price: float = 0.0
 
 
 class PositionManager:
@@ -77,13 +74,6 @@ class PositionManager:
         except Exception as e:
             logger.error(f"{symbol} 기존 포지션 조회 실패: {e}")
             return 0.0
-
-    def should_build_position(self, symbol: str, premium: float, max_position_usd: float) -> bool:
-        """포지션 구축 여부를 판단한다."""
-        position = self.get_position(symbol)
-
-        # 프리미엄이 0% 이하이고 최대 포지션에 도달하지 않았을 때
-        return premium <= 0 and position.value_usd < max_position_usd
 
     def get_position_increment(self, symbol: str, max_position_usd: float, increment_usd: float) -> float:
         """포지션 증가 크기를 계산한다."""

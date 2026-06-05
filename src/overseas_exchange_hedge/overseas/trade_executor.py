@@ -529,8 +529,12 @@ class TradeExecutor:
                     for p in positions or []:
                         sym = p.get("symbol") or ""
                         if sym and coin.upper() in sym.upper():
-                            # prefer contracts/size
-                            real_perp = _coalesce(p.get("contracts"), p.get("contractsSize"), p.get("size"))
+                            # ccxt 포지션: contracts=계약 수, contractSize=계약당 기초자산.
+                            # base 수량 = contracts * contractSize. (이전 코드의 "contractsSize"는
+                            # 존재하지 않는 키라 항상 무시됐고, 계약 수를 코인 수량과 직접 비교했다.)
+                            contracts_n = _coalesce(p.get("contracts"), p.get("size"))
+                            contract_size = _coalesce(p.get("contractSize"), default=1.0)
+                            real_perp = contracts_n * contract_size
                             break
                     if not real_perp or real_perp <= 0:
                         # fallback to effective
@@ -539,11 +543,23 @@ class TradeExecutor:
                     diff = spot_filled - real_perp  # +: spot>perp, -: spot<perp
                     tol = 1e-6  # 1-2 ticks 수준이면 무시
                     if abs(diff) > tol:
-                        side = "buy" if diff > 0 else "sell"
-                        amt = abs(diff)
-                        ex_perp.create_order(
-                            symbol=perp_symbol_code, type="market", side=side, amount=amt, params={"reduceOnly": True}
-                        )
+                        if diff < 0:
+                            # 숏이 현물보다 많음 → reduce-only 매수로 숏을 줄여 델타 중립화.
+                            ex_perp.create_order(
+                                symbol=perp_symbol_code,
+                                type="market",
+                                side="buy",
+                                amount=abs(diff),
+                                params={"reduceOnly": True},
+                            )
+                        else:
+                            # 현물이 숏보다 많음 → 숏 추가가 필요하나 reduce-only로는 불가하고
+                            # 시장가 추가 숏은 위험하므로 경고만 남긴다(수동/후속 확인).
+                            logger.warning(
+                                "   ⚠️ Reconcile: 현물이 숏보다 %.8f %s 많음 — 추가 숏 필요(수동 확인)",
+                                abs(diff),
+                                coin,
+                            )
             except Exception:
                 # reconciliation is best-effort
                 pass
