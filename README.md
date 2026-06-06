@@ -17,7 +17,7 @@ KRW 프리미엄과 해외 거래소간 현물/선물 스프레드를 활용하�
 
 #### 포지션 구축 과정
 1. **기회 포착**: 선물 가격 > 현물 가격 (콘탱고) 상황 감지
-2. **스프레드 계산**: `(선물가 - 현물가) / 현물가`가 임계값(0.21%) 초과 확인
+2. **스프레드 계산**: `(선물가 - 현물가) / 현물가`가 임계값(기본 0.15%) 초과 확인
 3. **델타 중립 실행**:
    - 현물 매수 (Long): 가장 저렴한 거래소에서
    - 선물 매도 (Short): 가장 비싼 거래소에서 1x 레버리지로
@@ -61,20 +61,25 @@ uv sync --dev
 cp .env.example .env
 ```
 
-2. API 키 입력:
+2. API 키 입력 (`.env.example` 참고):
 ```env
-# GateIO
+# 해외 거래소 (진입/청산에 사용)
 GATEIO_API_KEY=your_key
 GATEIO_API_SECRET=your_secret
 
-# Bybit
 BYBIT_API_KEY=your_key
 BYBIT_API_SECRET=your_secret
 
-# OKX
 OKX_API_KEY=your_key
 OKX_API_SECRET=your_secret
 OKX_API_PASSWORD=your_password
+
+# 한국 거래소 (선택 - 김치 프리미엄 Exit 워크플로에 필요)
+BITHUMB_API_KEY=your_key
+BITHUMB_API_SECRET=your_secret
+
+UPBIT_API_KEY=your_key
+UPBIT_API_SECRET=your_secret
 ```
 
 ## 사용법
@@ -202,10 +207,10 @@ rm -f runtime/state/exit_state.json  # Exit 상태 초기화
 `src/overseas_exchange_hedge/config.py`에서 조정 가능:
 
 ```python
-ENTRY_AMOUNT = 20.0              # 회당 진입 금액 (USDT)
+ENTRY_AMOUNT = 100.0             # 회당 진입 금액 (USDT)
 MAX_ENTRIES = 40                 # 최대 진입 횟수
-PRICE_DIFF_THRESHOLD = 0.0021    # 진입 스프레드 (0.21%) - 콘탱고
-SLEEP_SEC = 10                   # 체크 주기
+PRICE_DIFF_THRESHOLD = 0.0015    # 진입 스프레드 (0.15%) - 콘탱고
+SLEEP_SEC = 3                    # 체크 주기 (초)
 FUTURES_LEVERAGE = 1             # 선물 레버리지 (항상 1x)
 ```
 
@@ -230,14 +235,25 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ### 패키지 설치 문제
 ```bash
-# 가상환경 재생성
+# 가상환경 재생성 후 의존성 재설치 (pyproject.toml 기준)
 rm -rf .venv
-uv venv
-uv pip install ccxt python-dotenv requests
+uv sync --dev
 ```
 
+## 프로젝트 구조
 
+```
+src/overseas_exchange_hedge/
+  cli.py            # 통합 메뉴 및 직접 실행 모드
+  config.py         # 거래/수수료/거래소 API 설정
+  common/           # 런타임 경로(runtime/)·유틸·로깅
+  overseas/         # 해외 현물+선물 헤지 진입/청산 엔진
+  korea/exit/       # 김치 프리미엄 청산 (UnifiedExitManager)
+  korea/redflag/    # 한국 거래소 레드플래그 진입 봇
+tests/              # 오프라인 단위 테스트 (실거래 없음)
+docs/process.md     # 전체 시스템 동작 정리
+```
 
+## 라이선스
 
-
-bytbit deposit/withdraw status: https://www.bybit.com/x-api/v3/private/cht/asset-common/coin-status
+MIT License. 자세한 내용은 [LICENSE](LICENSE) 참고.
