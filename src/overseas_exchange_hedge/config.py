@@ -16,9 +16,14 @@ load_dotenv()
 # Trading parameters.
 ENTRY_AMOUNT: float = 100.0
 MAX_ENTRIES: int = 40
-PRICE_DIFF_THRESHOLD: float = 0.0015
+# Minimum executable contango after simulated market-order depth and taker fees.
+MIN_EXECUTABLE_NET_SPREAD: float = 0.002
+PRICE_DIFF_THRESHOLD: float = MIN_EXECUTABLE_NET_SPREAD
+ORDERBOOK_DEPTH_LIMIT: int = 50
 SLEEP_SEC: int = 3
 FUTURES_LEVERAGE: int = 1
+MIN_FUNDING_RATE: float = 0.0
+REQUIRE_FUNDING_RATE: bool = True
 
 # Exchange API configuration.
 EXCHANGES_CONFIG: Dict[str, Dict[str, Any]] = {

@@ -6,13 +6,13 @@ import logging
 import sys
 import time
 from datetime import datetime
-from typing import Dict, Iterable, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 import requests
 
 from ..common import utils
 from ..common.logging_utils import setup_logging
-from ..config import ENTRY_AMOUNT, EXCHANGES_CONFIG, MAX_ENTRIES, PRICE_DIFF_THRESHOLD, SLEEP_SEC
+from ..config import ENTRY_AMOUNT, EXCHANGES_CONFIG, MAX_ENTRIES, MIN_EXECUTABLE_NET_SPREAD, SLEEP_SEC
 from .exchange_manager import ExchangeManager
 from .position_tracker import PositionTracker
 from .price_analyzer import PriceAnalyzer
@@ -303,7 +303,7 @@ def _print_configuration(coin: str, active_exchanges: Iterable[str]) -> None:
     logger.info("Active Exchanges: %s", ", ".join(ex.upper() for ex in active_exchanges))
     logger.info("Entry Amount: $%s", ENTRY_AMOUNT)
     logger.info("Max Entries: %s", MAX_ENTRIES)
-    logger.info("Spread Threshold: %s", utils.format_percentage(PRICE_DIFF_THRESHOLD))
+    logger.info("Executable Net Spread Threshold: %s", utils.format_percentage(MIN_EXECUTABLE_NET_SPREAD))
 
 
 def _check_funding_rates(price_analyzer: PriceAnalyzer, entry_mode: str, perp_exchange_filter: Optional[str]) -> None:
@@ -379,7 +379,7 @@ def _maybe_partial_unwind(
     trade_executor: TradeExecutor,
     position_tracker: PositionTracker,
     coin: str,
-    prices: Dict[str, Dict[str, float]],
+    prices: Dict[str, Dict[str, Any]],
 ) -> None:
     """Attempts partial unwind when the PnL threshold is met.
 
@@ -487,38 +487,57 @@ def _hedge_loop(
 
     while entry_count < MAX_ENTRIES:
         prices = price_analyzer.fetch_all_prices()
-        (
-            spot_ex,
-            perp_ex,
-            spot_price,
-            perp_price,
-            spread,
-        ) = price_analyzer.find_best_hedge_opportunity_from_data(
-            prices, spot_filter=spot_exchange_filter, perp_filter=perp_exchange_filter
+        opportunity = price_analyzer.find_best_executable_hedge_opportunity_from_data(
+            prices,
+            spot_filter=spot_exchange_filter,
+            perp_filter=perp_exchange_filter,
+            entry_amount=ENTRY_AMOUNT,
         )
 
-        if not spot_ex or not perp_ex or spot_price is None or perp_price is None or spread is None:
+        if opportunity is None:
             last_no_data_log = _print_no_data_log(last_no_data_log)
             time.sleep(SLEEP_SEC)
             continue
+
+        spot_ex = opportunity.spot_exchange
+        perp_ex = opportunity.perp_exchange
+        spot_price = opportunity.spot_price
+        perp_price = opportunity.perp_price
+        spread = opportunity.net_spread
 
         if spot_price == 0:
             time.sleep(SLEEP_SEC)
             continue
 
-        gross_spread = (perp_price - spot_price) / spot_price
+        gross_spread = opportunity.gross_spread
         last_no_data_log = 0.0
-        status_flag = "READY" if spread >= PRICE_DIFF_THRESHOLD else "WAIT"
-        summary_token = (spot_ex, perp_ex, round(gross_spread, 6), round(spread, 6), status_flag)
+        status_flag = "READY" if spread >= MIN_EXECUTABLE_NET_SPREAD else "WAIT"
+        summary_token = (
+            spot_ex,
+            perp_ex,
+            round(gross_spread, 6),
+            round(spread, 6),
+            round(opportunity.quantity, 8),
+            status_flag,
+        )
 
         if summary_token != last_opportunity:
             timestamp = datetime.now().strftime("%H:%M:%S")
             summary_line = (
                 f"[{timestamp}] {spot_ex.upper()}→{perp_ex.upper()} "
+                f"MarketAvg ${spot_price:.6f}→${perp_price:.6f}, "
                 f"Gross {utils.format_percentage(gross_spread)}, "
-                f"Net {utils.format_percentage(spread)} | {status_flag}"
+                f"NetAfterFees {utils.format_percentage(spread)} "
+                f"for {opportunity.quantity:.8f} {coin} | {status_flag}"
             )
             logger.info(summary_line)
+            logger.info(
+                "    Depth used: spot %s levels / perp %s levels; top ask %.6f, top bid %.6f",
+                opportunity.spot_levels_used,
+                opportunity.perp_levels_used,
+                opportunity.spot_top_ask,
+                opportunity.perp_top_bid,
+            )
             last_opportunity = summary_token
 
             try:
@@ -535,31 +554,32 @@ def _hedge_loop(
 
         _maybe_partial_unwind(price_analyzer, trade_executor, position_tracker, coin, prices)
 
-        if spread < PRICE_DIFF_THRESHOLD:
+        if spread < MIN_EXECUTABLE_NET_SPREAD:
             time.sleep(SLEEP_SEC)
             continue
 
-        logger.info("\n🎯 조건 충족 – 헷지 주문 실행 중...")
-        success = trade_executor.execute_hedge(
+        logger.info("\n🎯 실행 가능 콘탱고 조건 충족 – 주문 직전 재검증 후 헷지 실행...")
+        execution = trade_executor.execute_hedge(
             spot_exchange=spot_ex,
             perp_exchange=perp_ex,
             spot_price=spot_price,
             perp_price=perp_price,
             coin=coin,
             entry_amount=ENTRY_AMOUNT,
+            target_quantity=opportunity.quantity,
+            min_net_spread=MIN_EXECUTABLE_NET_SPREAD,
         )
 
-        if success:
+        if execution:
             entry_count += 1
-            estimated_qty = ENTRY_AMOUNT / spot_price
             position_tracker.add_entry(
                 coin=coin,
-                spot_price=spot_price,
-                quantity=estimated_qty,
+                spot_price=execution.spot_price,
+                quantity=execution.quantity,
                 spot_exchange=spot_ex,
                 perp_exchange=perp_ex,
-                perp_price=perp_price,
-                spread=spread,
+                perp_price=execution.perp_price,
+                spread=execution.net_spread,
             )
             pos = position_tracker.positions
             logger.info(
