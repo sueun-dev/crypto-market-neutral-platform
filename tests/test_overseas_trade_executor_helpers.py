@@ -67,6 +67,24 @@ def test_extract_filled_and_cost_uses_trades_when_missing() -> None:
     assert cost == pytest.approx(101.0)
 
 
+def test_extract_filled_and_cost_does_not_treat_open_amount_as_fill() -> None:
+    from overseas_exchange_hedge.overseas.trade_executor import _extract_filled_and_cost
+
+    filled, cost = _extract_filled_and_cost({"amount": 2.0, "status": "open"}, fallback_price=100.0)
+
+    assert filled == 0.0
+    assert cost == 0.0
+
+
+def test_extract_filled_and_cost_uses_closed_amount_when_filled_missing() -> None:
+    from overseas_exchange_hedge.overseas.trade_executor import _extract_filled_and_cost
+
+    filled, cost = _extract_filled_and_cost({"amount": 2.0, "status": "closed"}, fallback_price=100.0)
+
+    assert filled == pytest.approx(2.0)
+    assert cost == pytest.approx(200.0)
+
+
 def test_enforce_min_spot_respects_min_cost_and_min_qty() -> None:
     from overseas_exchange_hedge.overseas.trade_executor import _enforce_min_spot
 

@@ -93,8 +93,11 @@ def _extract_filled_and_cost(order: Dict, fallback_price: float) -> Tuple[float,
     if not order:
         return 0.0, 0.0
 
-    filled = _coalesce(order.get("filled"), order.get("amount"))
-    cost = _coalesce(order.get("cost"), filled * fallback_price)
+    status = (order.get("status") or "").lower()
+    filled = _coalesce(order.get("filled"), default=0.0)
+    if filled <= 0 and status in ("closed", "filled"):
+        filled = _coalesce(order.get("amount"), default=0.0)
+    cost = _coalesce(order.get("cost"), default=0.0)
 
     trades = order.get("trades") or []
     if trades and (filled <= 0 or cost <= 0):
@@ -106,7 +109,25 @@ def _extract_filled_and_cost(order: Dict, fallback_price: float) -> Tuple[float,
         filled = max(filled, t_base)
         cost = max(cost, t_quote if t_quote > 0 else filled * fallback_price)
 
+    if cost <= 0 and filled > 0:
+        cost = filled * fallback_price
+
     return float(filled or 0.0), float(cost or 0.0)
+
+
+def _has_reliable_fill(order: Dict, fallback_price: float) -> bool:
+    """Returns True only when the order payload contains credible fill evidence."""
+    if not order:
+        return False
+    status = (order.get("status") or "").lower()
+    filled, cost = _extract_filled_and_cost(order, fallback_price)
+    if filled <= 0:
+        return False
+    if order.get("filled") is not None or order.get("trades"):
+        return True
+    if status in ("closed", "filled"):
+        return True
+    return cost > 0 and order.get("cost") is not None
 
 
 def _poll_fetch_order(exchange, order_id: str, symbol: str, fast: bool = False) -> Dict:
@@ -312,7 +333,7 @@ class TradeExecutor:
                 order = spot.create_order(symbol=spot_symbol, type="market", side="buy", amount=qty)
 
             order_id = (order or {}).get("id") or (order or {}).get("orderId") or ""
-            if order_id:
+            if order_id and not _has_reliable_fill(order or {}, ref_price):
                 order = _poll_fetch_order(spot, order_id, spot_symbol)
 
             filled, cost = _extract_filled_and_cost(order, ref_price)
@@ -328,7 +349,7 @@ class TradeExecutor:
                         if bump_qty > qty:
                             order2 = spot.create_order(symbol=spot_symbol, type="market", side="buy", amount=bump_qty)
                             oid2 = (order2 or {}).get("id") or ""
-                            if oid2:
+                            if oid2 and not _has_reliable_fill(order2 or {}, ref_price):
                                 order2 = _poll_fetch_order(spot, oid2, spot_symbol)
                             filled, cost = _extract_filled_and_cost(order2, ref_price)
 
@@ -389,7 +410,7 @@ class TradeExecutor:
                 order = spot.create_order(symbol=spot_symbol, type="market", side="buy", amount=qty)
 
             order_id = (order or {}).get("id") or (order or {}).get("orderId") or ""
-            if order_id:
+            if order_id and not _has_reliable_fill(order or {}, ref_price):
                 order = _poll_fetch_order(spot, order_id, spot_symbol)
 
             filled, cost = _extract_filled_and_cost(order, ref_price)
@@ -442,7 +463,7 @@ class TradeExecutor:
             order = spot.create_order(symbol=spot_symbol, type="market", side="sell", amount=quantity)
 
             order_id = (order or {}).get("id") or (order or {}).get("orderId") or ""
-            if order_id:
+            if order_id and not _has_reliable_fill(order or {}, ref_price):
                 order = _poll_fetch_order(spot, order_id, spot_symbol)
 
             filled, cost = _extract_filled_and_cost(order, ref_price)
@@ -517,7 +538,7 @@ class TradeExecutor:
             order = perp.create_order(symbol=perp_symbol, type="market", side="sell", amount=qty, params=params)
 
             order_id = (order or {}).get("id") or (order or {}).get("orderId") or ""
-            if order_id:
+            if order_id and not _has_reliable_fill(order or {}, ref_price):
                 order = _poll_fetch_order(perp, order_id, perp_symbol, fast=fast)
 
             filled, _ = _extract_filled_and_cost(order, ref_price)
@@ -817,7 +838,7 @@ class TradeExecutor:
             order = perp.create_order(symbol=perp_symbol, type="market", side="buy", amount=qty, params=params)
 
             order_id = (order or {}).get("id") or (order or {}).get("orderId") or ""
-            if order_id:
+            if order_id and not _has_reliable_fill(order or {}, ref_price):
                 order = _poll_fetch_order(perp, order_id, perp_symbol)
 
             filled, _ = _extract_filled_and_cost(order, ref_price)
