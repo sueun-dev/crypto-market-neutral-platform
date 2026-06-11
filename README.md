@@ -17,10 +17,11 @@ KRW 프리미엄과 해외 거래소간 현물/선물 스프레드를 활용하�
 
 #### 포지션 구축 과정
 1. **기회 포착**: 선물 가격 > 현물 가격 (콘탱고) 상황 감지
-2. **스프레드 계산**: `(선물가 - 현물가) / 현물가`가 임계값(기본 0.15%) 초과 확인
+2. **스프레드 계산**: 양쪽 시장가 주문이 먹을 orderbook depth를 시뮬레이션하고, taker fee 차감 후 net spread가 임계값(기본 0.20%) 초과인지 확인
 3. **델타 중립 실행**:
-   - 현물 매수 (Long): 가장 저렴한 거래소에서
-   - 선물 매도 (Short): 가장 비싼 거래소에서 1x 레버리지로
+   - 주문 직전 현물 orderbook, 선물 orderbook, funding rate를 병렬 재조회
+   - 선물 숏을 먼저 열고 실제 체결 수량을 확인
+   - 같은 base 수량만큼 현물 시장가 매수 후 초과/미달 수량 즉시 정리
 4. **수익 확정**: 스프레드 수렴 시 포지션 청산으로 수익 실현
 
 ### 리스크 관리
@@ -131,7 +132,7 @@ uv run market-neutral
    - 신규 상장 예정 코인 (IP, USDC 등)
 
 3. **실행 프로세스**
-   - 펀딩비 확인 (음수 펀딩비 경고)
+   - 펀딩비 확인 (데이터 없음/음수 펀딩비는 진입 후보 제외)
    - 실시간 스프레드 모니터링
    - 목표 스프레드 달성 시 자동 진입
    - 포지션 요약 및 빗썸 목표가 표시
@@ -141,7 +142,7 @@ uv run market-neutral
 📊 Best Opportunity:
   Buy:  BYBIT @ $8.41
   Sell: GATEIO @ $8.42
-  Spread: 0.119%
+  NetAfterFees: 0.200%+
   ✅ READY TO ENTER
 
 🎯 Executing hedge...
@@ -187,6 +188,8 @@ uv run market-neutral-korea-exit
 #### 병렬 처리 최적화:
 - 거래소 연결: 3배 빠른 초기화
 - 김프 계산: 3개 API 동시 호출
+- 해외 현물/선물 스캔: 심볼별·거래소별 orderbook 동시 조회
+- 해외 진입 직전 재검증: 현물 depth, 선물 depth, funding rate 동시 조회
 - 실시간 모니터링: 5초 간격
 
 ### 추가 도구
@@ -209,7 +212,10 @@ rm -f runtime/state/exit_state.json  # Exit 상태 초기화
 ```python
 ENTRY_AMOUNT = 100.0             # 회당 진입 금액 (USDT)
 MAX_ENTRIES = 40                 # 최대 진입 횟수
-PRICE_DIFF_THRESHOLD = 0.0015    # 진입 스프레드 (0.15%) - 콘탱고
+MIN_EXECUTABLE_NET_SPREAD = 0.002  # 시장가 depth + taker fee 반영 후 최소 0.20%
+ORDERBOOK_DEPTH_LIMIT = 50       # 시장가 체결 예상에 사용할 호가 레벨
+MIN_FUNDING_RATE = 0.0           # 숏 진입 최소 펀딩비
+REQUIRE_FUNDING_RATE = True      # 펀딩비 없으면 진입 후보 제외
 SLEEP_SEC = 3                    # 체크 주기 (초)
 FUTURES_LEVERAGE = 1             # 선물 레버리지 (항상 1x)
 ```

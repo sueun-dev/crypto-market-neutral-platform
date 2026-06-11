@@ -36,9 +36,9 @@
 - `overseas/exchange_manager.py`
   - `ExchangeManager`: ccxt 거래소 초기화, 심볼 로딩, 입출금 가능 여부(transferable) 판단.
 - `overseas/price_analyzer.py`
-  - `PriceAnalyzer`: 오더북/펀딩비 조회, 수수료 반영 스프레드 계산, 최적 조합 탐색.
+  - `PriceAnalyzer`: 오더북/펀딩비 조회, 시장가 depth 시뮬레이션, 수수료 반영 net spread 계산, 펀딩비 gate, 최적 조합 탐색.
 - `overseas/trade_executor.py`
-  - `TradeExecutor`: 1x 레버리지 강제, 주문/체결 폴링, spot/perp 실행 헬퍼.
+  - `TradeExecutor`: 주문 직전 executable net spread 병렬 재검증, 1x 레버리지 강제, 주문/체결 폴링, spot/perp 실행 헬퍼, 체결 수량 불일치 정리.
 - `overseas/position_tracker.py`
   - `PositionTracker`: 진입 기록/평단/잔여 수량 관리, 부분 청산을 위한 pair aggregation.
 

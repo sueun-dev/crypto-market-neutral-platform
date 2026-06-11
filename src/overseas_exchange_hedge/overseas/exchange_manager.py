@@ -469,7 +469,18 @@ class ExchangeManager:
                 self._attach_credentials(perp_params, config, password_key="password")
             spot_exchange = cast(ccxt.Exchange, ccxt.okx(cast(Any, spot_params)))
             perp_exchange = cast(ccxt.Exchange, ccxt.okx(cast(Any, perp_params)))
+            self._patch_okx_keysort(spot_exchange)
+            self._patch_okx_keysort(perp_exchange)
             self.exchanges[exchange_name] = {"spot": spot_exchange, "perp": perp_exchange}
+
+    @staticmethod
+    def _patch_okx_keysort(exchange: ccxt.Exchange) -> None:
+        """Handles ccxt/OKX market ids that can include None during sorting."""
+
+        def keysort(mapping: Dict[Any, Any]) -> Dict[Any, Any]:
+            return dict(sorted(mapping.items(), key=lambda item: "" if item[0] is None else str(item[0])))
+
+        exchange.keysort = keysort
 
     def load_markets_for_coin(self, coin: str) -> Dict[str, Dict[str, str]]:
         """Loads markets for a specific coin and validates symbols."""
